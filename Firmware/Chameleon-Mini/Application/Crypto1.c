@@ -26,6 +26,9 @@
     ( x0 | ( (x1 | x4) & (x3 ^ x4) ) ) ^ ( ( x0 ^ (x1 & x3) ) & ( (x2 ^ x3) | (x1 & x4) ) ) \
 )
 
+#define SWAPENDIAN(x)\
+	(x = (x >> 8 & 0xff00ff) | (x & 0xff00ff) << 8, x = x >> 16 | x << 16)
+
 /* Create tables from function fa, fb and fc for faster access */
 static const uint8_t TableAB[5][16] = {
     { /* fa with Input {3,2,1,0} = (0,0,0,0) to (1,1,1,1) shifted by 0 */
@@ -206,6 +209,67 @@ void Crypto1Setup(uint8_t Key[6], uint8_t Uid[4], uint8_t CardNonce[4])
     CardNonce[3] ^= (uint8_t) (Temp >> 24);
 }
 
+void Crypto1SetupReader(uint8_t Key[6], uint8_t Uid[4], uint8_t CardNonce[4], bool Nested)
+{
+    uint8_t i;
+
+    /* Again, one trade off when splitting up the state into even/odd parts
+    * is that loading the key into the state becomes a little more difficult.
+    * The inner loop generates 8 even and 8 odd bits from 16 key bits and
+    * the outer loop stores them. */
+    for (i=0; i<(LFSR_SIZE/2); i++) {
+        uint8_t EvenByte = 0;
+        uint8_t OddByte = 0;
+        uint16_t KeyWord = ((uint16_t) Key[2*i+1] << 8) | Key[2*i+0];
+        uint8_t j;
+
+        for (j=0; j<8; j++) {
+            EvenByte >>= 1;
+            OddByte >>= 1;
+
+            if (KeyWord & (1<<0)) {
+                EvenByte |= 0x80;
+            }
+
+            if (KeyWord & (1<<1)) {
+                OddByte |= 0x80;
+            }
+
+            KeyWord >>= 2;
+        }
+
+        StateEven[i] = EvenByte;
+        StateOdd[i] = OddByte;
+    }
+
+    if (Nested)
+    {
+        /* Use Uid XOR DECRYPTED CardNonce as feed-in and do 32 clocks on the
+        * Crypto1 LFSR.*/
+		for (i=0; i<32; i++)
+		{
+			CardNonce[i/8] ^= Crypto1FilterOutput() << (i % 8); // decrypt bit
+
+			Crypto1LFSR(((Uid[i/8]^CardNonce[i/8]) >> (i % 8)) & 0x01); // feed back decrypted CardNonce bit XOR uid bit
+		}
+    } else {
+        /* Use Uid XOR CardNonce as feed-in and do 32 clocks on the
+        * Crypto1 LFSR.*/
+        uint32_t Temp = 0;
+
+        Temp |= (uint32_t) (Uid[0] ^ CardNonce[0]) << 0;
+        Temp |= (uint32_t) (Uid[1] ^ CardNonce[1]) << 8;
+        Temp |= (uint32_t) (Uid[2] ^ CardNonce[2]) << 16;
+        Temp |= (uint32_t) (Uid[3] ^ CardNonce[3]) << 24;
+
+        for (i=0; i<32; i++)
+        {
+        	Crypto1LFSR(Temp & 0x01);
+            Temp >>= 1;
+        }
+    }
+}
+
 void Crypto1Auth(uint8_t EncryptedReaderNonce[4])
 {
     uint32_t Temp = 0;
@@ -320,4 +384,32 @@ void Crypto1PRNG(uint8_t State[4], uint16_t ClockCount)
     }
 
 
+}
+
+void Crypto1EncryptWithParity(uint8_t * Buffer, uint16_t BitCount)
+{
+	uint8_t i = 0;
+	while (i < BitCount)
+	{
+		Buffer[i/8] ^= Crypto1FilterOutput() << (i % 8);
+		if (++i % 9 != 0) // only shift, if this was no parity bit
+			Crypto1LFSR(0);
+	}
+}
+
+void Crypto1ReaderAuthWithParity(uint8_t PlainReaderAnswerWithParityBits[9])
+{
+	uint8_t i = 0, feedback;
+	while (i < 72)
+	{
+		feedback = PlainReaderAnswerWithParityBits[i/8] >> (i % 8);
+		PlainReaderAnswerWithParityBits[i/8] ^= Crypto1FilterOutput() << (i % 8);
+		if (++i % 9 != 0) // only shift, if this was no parity bit
+		{
+			if (i <= 36)
+				Crypto1LFSR(feedback & 1);
+			else
+				Crypto1LFSR(0);
+		}
+	}
 }
