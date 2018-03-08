@@ -61,8 +61,10 @@ SETTINGS	+= -DLOG_SETTING_GLOBAL
 SETTINGS	+= -DDEFAULT_SETTING=SETTINGS_FIRST
 
 #Default pending task timeout
-SETTINGS	+= -DDEFAULT_PENDING_TASK_TIMEOUT=10 #* 100ms
+SETTINGS	+= -DDEFAULT_PENDING_TASK_TIMEOUT=50 #* 100ms
 
+#Default reader threshold
+SETTINGS	+= -DDEFAULT_READER_THRESHOLD=400
 
 #Use EEPROM to store settings
 SETTINGS	+= -DENABLE_EEPROM_SETTINGS
@@ -90,7 +92,7 @@ TARGET       = Chameleon-Mini
 OPTIMIZATION = s
 SRC         += $(TARGET).c LUFADescriptors.c System.c Configuration.c Random.c Common.c Memory.c MemoryAsm.S Button.c Log.c Settings.c LED.c Map.c AntennaLevel.c
 SRC         += Terminal/Terminal.c Terminal/Commands.c Terminal/XModem.c Terminal/CommandLine.c
-SRC         += Codec/Codec.c Codec/ISO14443-2A.c Codec/Reader14443-2A.c
+SRC         += Codec/Codec.c Codec/ISO14443-2A.c Codec/Reader14443-2A.c Codec/Reader14443-ISR.S
 SRC         += Application/MifareUltralight.c Application/MifareClassic.c Application/ISO14443-3A.c Application/Crypto1.c Application/Reader14443A.c
 SRC         += $(LUFA_SRC_USB) $(LUFA_SRC_USBCLASS)
 LUFA_PATH    = ../LUFA
