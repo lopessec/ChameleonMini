@@ -3,6 +3,7 @@
  *
  *  Created on: 13.05.2013
  *      Author: skuser
+ *      Author: @lopessecurity
  */
 
 #include "MifareClassic.h"
@@ -70,6 +71,7 @@
 #define CMD_RESTORE                 0xC2
 #define CMD_RESTORE_FRAME_SIZE      2         /* Bytes without CRCA */
 #define CMD_SIG_READ                0xC2      
+#define CMD_SIG_READ_EV1            0x3C      /* JLE: here I read different: cmd 0x3C */
 #define CMD_SIG_READ_FRAME_SIZE     1         /* Bytes without CRCA */
 #define CMD_TRANSFER                0xB0
 #define CMD_TRANSFER_FRAME_SIZE     2         /* Bytes without CRCA */
@@ -674,9 +676,9 @@ uint16_t MifareClassicAppProcess(uint8_t* Buffer, uint16_t BitCount)
 
             /* EV1 READ_SIG command is */
             /* same as CMD_RESTORE but has no operand, rely on CRC here! */
-      } else if ((Buffer[0] == CMD_SIG_READ) &&
+      } else if ((Buffer[0] == CMD_SIG_READ) || ((Buffer[0] == CMD_SIG_READ) &&
                  (Buffer[1] == 0xe0) && 
-                 (Buffer[2] == 0xb4)) {
+                 (Buffer[2] == 0xb4))) {
             uint8_t Key[6];
         /* check if Originality check signature data available */
         /* Signature data is stored in (hidden) blocks 68..71 (0x44..0x47) */
